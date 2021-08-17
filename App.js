@@ -1,25 +1,26 @@
-import {AppState, Text} from 'react-native'
+import {AppState, Text, ToastAndroid} from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
-import { CHAT_SCREEN, CONNECTION_SCREEN, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
+import { CHAT_SCREEN, CONNECTION_SCREEN, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, RESPONSE_CHAT_CREATED, RESPONSE_MESSAGE_CREATED, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ConnectionScreen } from './src/screens/ConnectionScreen'
 import { createStackNavigator } from '@react-navigation/stack'
 import useInterval from 'react-useinterval'
 import RNBluetoothClassic from 'react-native-bluetooth-classic'
 import { disposeBluetoothServicees } from './src/api/bluetoothService';
-import { BluetoothConnectionContext } from './src/misc/contexts';
+import { BluetoothConnectionContext, ChatContext } from './src/misc/contexts';
 import { bluetoothConnection as initialBluetoothConnection } from './src/models/bluetoothConnection'
 import { bluetoothEventsEmitter, chatEventsEmitter } from './src/misc/emitters';
 import AsyncStorage from '@react-native-community/async-storage';
-import { createEmptyChat } from './src/api/messageService';
+import { createEmptyChat, saveRecievedChat, createMessage as createMsg, getChatById, saveRecievedMessage } from './src/api/messageService';
 
 
 const Stack = createStackNavigator()
 
 function App() {  
   const [bluetoothConnection, setBluetoothConnection] = useState(initialBluetoothConnection)
-  const [requestInProgress, setRequestInProgress] = useState(false)
+  const [currentChat, setCurrentChat] = useState(null)
+  const [terminalSubscription, setTerminalSubscription] = useState(null)
 
   useEffect(() => {
     AppState.addEventListener("change", _handleAppStateChange);
@@ -38,35 +39,22 @@ function App() {
   const createChat = async (params) => {
     const { recieverAddress } = params
 
-    setRequestInProgress(true)
-
     await RNBluetoothClassic.writeToDevice(recieverAddress, JSON.stringify({
-      action: REQUEST_CREATE_CHAT, data: await createEmptyChat(recieverAddress, '')
-    }) + '\r', "utf-8")
-
-    let dataAvailable = await RNBluetoothClassic.availableFromDevice(recieverAddress)
-    let timeLeft = 4000
-    const timeStep = 100
-
-    while (timeLeft > 0 && dataAvailable === 0) {
-      await new Promise(resolve => setTimeout(resolve, timeStep))
-
-      timeLeft -= timeStep
-
-      dataAvailable = await RNBluetoothClassic.availableFromDevice(recieverAddress)
-    }
-
-    if (dataAvailable > 0) {
-      const data = await RNBluetoothClassic.readFromDevice(recieverAddress)
-
-      console.log(data)
-    }
-    else {
-      throw new Error('No response from device ', recieverAddress, 'in 4 seconds!')
-    }
+      action: REQUEST_CREATE_CHAT, payload: { chat: await createEmptyChat(recieverAddress, '')}
+    }) + '\r', "utf-8") //save waiting
   }
 
-  const createMessage = async (chatId, message) => {
+  const createMessage = async (params) => {
+    const { recieverAddress, chatId, text } = params
+    
+    console.log('create message')
+
+    await RNBluetoothClassic.writeToDevice(recieverAddress, JSON.stringify({
+      action: REQUEST_CREATE_MESSAGE, payload: { message: await createMsg(text, chatId, 'replace with mac???', recieverAddress)}
+    }) + '\r', "utf-8")
+  }
+
+  const onMessageRecieved = async () => {
 
   }
 
@@ -79,6 +67,72 @@ function App() {
       chatEventsEmitter.off(REQUEST_CREATE_MESSAGE, createMessage)
     }
   }, [])
+
+  useEffect(async () => {
+    console.log('currentChat updated -> ', currentChat?.id)
+    
+    if (currentChat?.id) {
+      const chat = await getChatById(currentChat?.id)
+
+      console.log(chat)
+    }    
+  }, [currentChat])
+
+  const handleDeviceData = async (device) => {
+    const dataAvailable = await device.available()
+
+    if (dataAvailable > 0) {
+      const rawData = await device.read()
+
+      if (!rawData)
+        return;
+
+      const data = JSON.parse(rawData)
+
+      if (data > 1)
+        throw new Error('Unexpected behaviour 0_0')
+
+      if (!data.action)
+        throw new Error('Invalid message format. Message: ' +  data)
+
+      switch (data.action) {        
+        case RESPONSE_CHAT_CREATED:
+          ToastAndroid.show('chat with device ' + device.name + ' initialized!', 3000)
+
+          setCurrentChat(await getChatById(data.payload.chatId))
+
+          break;
+        case REQUEST_CREATE_CHAT: 
+          const chat = data.payload.chat
+
+          await saveRecievedChat(chat)
+
+          await RNBluetoothClassic.writeToDevice(device.address, JSON.stringify({
+            action: RESPONSE_CHAT_CREATED, payload: { chatId: chat.id }}) + '\r');
+
+          setCurrentChat(chat)
+          
+          ToastAndroid.show('chat with device ' + device.name + ' initialized!', 3000)
+
+          break;
+        case REQUEST_CREATE_MESSAGE:
+          const message = data.payload.message
+          
+          saveRecievedMessage(message)
+
+          await RNBluetoothClassic.writeToDevice(device.address, JSON.stringify({ action: RESPONSE_MESSAGE_CREATED, payload: { messageId: message.id }}) + '\r')
+
+          ToastAndroid.show('message recieved from device ' + device.name, 3000)
+
+          break;
+
+        case RESPONSE_MESSAGE_CREATED: 
+          ToastAndroid.show('message recieved on device ' + device.name, 3000)
+
+          break;
+      }
+    }
+  }
 
   //connection checking
   useInterval(async () => {
@@ -93,18 +147,9 @@ function App() {
         return
       }
 
-      const dataAvailable = await terminal.available()
-
-      if (!requestInProgress && dataAvailable > 0) {
-        const data = await terminal.read()
-
-        console.log('recieved', data, 'from terminal', terminal.address)
-        console.log('sending answer')
-
-        await terminal.write('respond' + '\r', 'utf-8')
-      }
+      handleDeviceData(terminal)
     }
-  }, 1000)
+  }, 500)
 
   useEffect(async () => { 
     const savedTerminalAddress = await AsyncStorage.getItem(SAVED_TERMINAL_ADDRESS_STORAGE_KEY)
@@ -138,9 +183,15 @@ function App() {
 
     if (terminal) {
       await AsyncStorage.setItem(SAVED_TERMINAL_ADDRESS_STORAGE_KEY, terminal.address)
+
+      //setTerminalSubscription(terminal.onDataReceived((data) => console.log('on data recieved data:', data)))
     }
     else {
       await AsyncStorage.removeItem(SAVED_TERMINAL_ADDRESS_STORAGE_KEY)
+
+      terminalSubscription?.cancel()
+      
+      setTerminalSubscription(null)
     }
   }, [bluetoothConnection.terminal])
   
@@ -168,8 +219,9 @@ function App() {
     }
   }, [bluetoothConnection.acceptModeEnabled])  
 
-  return  (
-    <BluetoothConnectionContext.Provider value={{ bluetoothConnection, setBluetoothConnection }}>
+  return  (    
+    <ChatContext.Provider value={{ currentChat, setCurrentChat }}>
+      <BluetoothConnectionContext.Provider value={{ bluetoothConnection, setBluetoothConnection }}>
       <NavigationContainer>
         <Stack.Navigator
           initialRouteName={CONNECTION_SCREEN}
@@ -184,6 +236,7 @@ function App() {
         </Stack.Navigator>
       </NavigationContainer>
     </BluetoothConnectionContext.Provider>
+    </ChatContext.Provider>
   )
 }
 

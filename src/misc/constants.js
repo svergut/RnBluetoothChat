@@ -14,3 +14,5 @@ export const MESSAGES_STORAGE_KEY = 'Messages'
 
 export const REQUEST_CREATE_CHAT = 'CreateChat'
 export const REQUEST_CREATE_MESSAGE = 'CreateMessage'
+export const RESPONSE_CHAT_CREATED = 'ChatCreated'
+export const RESPONSE_MESSAGE_CREATED = 'MessageCreated'

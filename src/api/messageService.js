@@ -4,7 +4,7 @@ import { CHATS_STORAGE_KEY, CHAT_STATUS_ACTIVE, MESSAGES_STORAGE_KEY } from "../
 //chat is saved on op device
 export async function createEmptyChat(recieverMac, recieverName) {
     const date = new Date()
-    const chatId = JSON.stringify(date)    
+    const chatId = JSON.stringify(date)
 
     const chat = {
         id: chatId,
@@ -17,6 +17,26 @@ export async function createEmptyChat(recieverMac, recieverName) {
     await addChatToStorage(chat)
 
     return chat
+}
+
+export async function saveRecievedChat(chat) {
+    await addChatToStorage(chat)
+}
+
+export async function saveRecievedMessage(chatId, message) {
+    await saveMessageToStorage(chatId, message)
+}
+
+export async function getChatById(id) {
+    const chats = await getObjectFromStorage(CHATS_STORAGE_KEY)
+
+    return chats[id]
+}
+
+export async function getChatMessages(chatId) {
+    const messages = getObjectFromStorage(MESSAGES_STORAGE_KEY)
+
+    return messages[chatId] ?? []
 }
 
 async function getObjectFromStorage(key) {
@@ -59,9 +79,9 @@ async function saveMessageToStorage(chatId, message) {
     saveObjectToStorage(MESSAGES_STORAGE_KEY, messages)
 }
 
-export async function createMessage(text, chatId, senderMac, recieverMac) {
-    const messageId = JSON.stringify(date)
+export async function createMessage(text, chatId, senderMac, recieverMac) {    
     const date = new Date()
+    const messageId = JSON.stringify(date)
 
     const message =  {
         chatId: chatId,

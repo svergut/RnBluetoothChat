@@ -12,6 +12,7 @@ import { CHAT_SCREEN } from "../misc/constants";
 
 export function ConnectionScreen() {
     const { bluetoothConnection, setBluetoothConnection } = useContext(BluetoothConnectionContext)
+    
     const [ bondedDevices, setBondedDevices ] = useState([])
 
     const navigation = useNavigation()
