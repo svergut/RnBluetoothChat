@@ -10,18 +10,23 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@react-native-community/async-storage": "^1.12.1",
     "@react-native-community/masked-view": "^0.1.11",
     "@react-navigation/core": "latest",
     "@react-navigation/native": "^5.9.8",
     "@react-navigation/stack": "^5.7.0",
+    "nanoid": "^3.1.12",
     "react": "17.0.1",
     "react-native": "0.64.2",
     "react-native-bluetooth-classic": "^1.60.0-rc.16",
     "react-native-gesture-handler": "^1.10.3",
+    "react-native-get-random-values": "^1.4.0",
     "react-native-reanimated": "^2.2.0",
     "react-native-safe-area-context": "^3.3.0",
     "react-native-screens": "^3.5.0",
-    "react-navigation": "^4.4.4"
+    "react-navigation": "^4.4.4",
+    "react-useinterval": "^1.0.2",
+    "tiny-emitter": "^2.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.12.9",
