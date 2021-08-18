@@ -1,13 +1,13 @@
 import {AppState, Text, ToastAndroid} from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
-import { CHAT_NEW_MESSAGE, CHAT_SCREEN, CONNECTION_SCREEN, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, RESPONSE_CHAT_CREATED, RESPONSE_MESSAGE_CREATED, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
+import { CHAT_NEW_MESSAGE, CHAT_SCREEN, CONNECTION_SCREEN, DEVICE_CONNECTED, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, REQUEST_HANDSHAKE, RESPONSE_CHAT_CREATED, RESPONSE_HANDSHAKE, RESPONSE_MESSAGE_CREATED, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ConnectionScreen } from './src/screens/ConnectionScreen'
 import { createStackNavigator } from '@react-navigation/stack'
 import useInterval from 'react-useinterval'
 import RNBluetoothClassic from 'react-native-bluetooth-classic'
-import { disposeBluetoothServicees } from './src/api/bluetoothService';
+import { disposeBluetoothServicees, sendBluetoothMessage } from './src/api/bluetoothService';
 import { BluetoothConnectionContext, ChatContext } from './src/misc/contexts';
 import { bluetoothConnection as initialBluetoothConnection } from './src/models/bluetoothConnection'
 import { bluetoothEventsEmitter, chatEventsEmitter } from './src/misc/emitters';
@@ -58,20 +58,21 @@ function App() {
       action: REQUEST_CREATE_MESSAGE, payload: { message: await createMsg(text, chatId, 'OWN:DEVICE:MAC', 'Me', recieverAddress, recieverName)}
     }))
   }
-
-  async function sendBluetoothMessage(deviceAddress, message) {
-    if (!deviceAddress) {
-      console.log('Cannot send message: device is not connected')
-      return;
-    }
-
-    await RNBluetoothClassic.writeToDevice(deviceAddress, message + '\r', "utf-8")
-  }
-
+  
   const onMessageRecieved = async (params) => {
     const { message } = params
 
     saveMessageToStorage(message.chatId, message)
+  }
+
+  const onDeviceConnected = async (props) => {
+    const { deviceAddress } = props
+
+    const device = await RNBluetoothClassic.getConnectedDevice(deviceAddress)
+
+    if (device) {
+      setBluetoothConnection({...bluetoothConnection, terminal: device})
+    }
   }
 
   useEffect(async () => {
@@ -79,10 +80,14 @@ function App() {
     chatEventsEmitter.on(REQUEST_CREATE_MESSAGE, createMessage)  
     chatEventsEmitter.on(CHAT_NEW_MESSAGE, onMessageRecieved) 
 
+    bluetoothEventsEmitter.on(DEVICE_CONNECTED, onDeviceConnected)
+
     return () => {
       chatEventsEmitter.off(REQUEST_CREATE_CHAT, createChat)
       chatEventsEmitter.off(REQUEST_CREATE_MESSAGE, createMessage)
       chatEventsEmitter.off(CHAT_NEW_MESSAGE, onMessageRecieved)
+
+      bluetoothEventsEmitter.off(DEVICE_CONNECTED, onDeviceConnected)
     }
   }, [])
 
@@ -102,6 +107,8 @@ function App() {
 
       if (!rawData)
         return;
+
+      console.log(data)
 
       const data = JSON.parse(rawData)
 
@@ -152,13 +159,25 @@ function App() {
           ToastAndroid.show('message recieved on device ' + device.name, 3000)
 
           break;
+
+        case REQUEST_HANDSHAKE:        
+          await sendBluetoothMessage(device.address, JSON.stringify({ action: RESPONSE_HANDSHAKE }));
+
+          bluetoothEventsEmitter.emit(DEVICE_CONNECTED, { deviceAddress: device.address })
+        
+          break;
+        
+        case RESPONSE_HANDSHAKE:
+          bluetoothEventsEmitter.emit(DEVICE_CONNECTED, { deviceAddress: device.address })
+
+          break;
       }
     }
   }
 
   //connection checking
   useInterval(async () => {
-    const terminal = bluetoothConnection.terminal
+    const terminal = bluetoothConnection.terminal  
     
     if (terminal) {
       const terminalConnected = await terminal.isConnected()
@@ -167,10 +186,14 @@ function App() {
       {
         setBluetoothConnection({...bluetoothConnection, terminal: null})
         return
-      }
-
-      handleDeviceData(terminal)
+      }      
     }
+
+    const connectedDevices = await RNBluetoothClassic.getConnectedDevices()
+
+    connectedDevices.forEach((device) => {
+      handleDeviceData(device)
+    })
   }, 500)
 
   useEffect(async () => { 
@@ -189,7 +212,7 @@ function App() {
           {
             reconnectAttempts = 0
 
-            setBluetoothConnection({...bluetoothConnection, terminal: device})
+            await sendBluetoothMessage(device.address, JSON.stringify({ action: REQUEST_HANDSHAKE }))            
           }
         }
         catch (e) {
@@ -219,7 +242,6 @@ function App() {
   
   useEffect(async () => {
     const acceptModeEnabled = bluetoothConnection.acceptModeEnabled
-    console.log(acceptModeEnabled)
 
     if (!bluetoothConnection.acceptModeEnabled) {
       try {

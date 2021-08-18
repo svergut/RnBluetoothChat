@@ -14,3 +14,13 @@ export async function sendRequest(reciever, request) {
         
     }
 }
+
+export async function sendBluetoothMessage(deviceAddress, message) {
+    if (!deviceAddress) {
+      console.log('Cannot send message: device is not connected')
+      return;
+    }
+
+    await RNBluetoothClassic.writeToDevice(deviceAddress, message + '\r', "utf-8")
+  }
+

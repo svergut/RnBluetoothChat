@@ -2,12 +2,12 @@ import React from "react";
 import { useContext } from "react";
 import { useEffect } from "react";
 import { ScrollView, Text, ToastAndroid, TouchableOpacity, View } from "react-native";
-import { disposeBluetoothServicees, startWaitingForConnection } from "../api/bluetoothService";
+import { disposeBluetoothServicees, sendBluetoothMessage, startWaitingForConnection } from "../api/bluetoothService";
 import { BluetoothConnectionContext } from "../misc/contexts";
 import RNBluetoothClassic from 'react-native-bluetooth-classic'
 import { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
-import { CHATS_STORAGE_KEY, CHAT_SCREEN, MESSAGES_STORAGE_KEY } from "../misc/constants";
+import { CHATS_STORAGE_KEY, CHAT_SCREEN, MESSAGES_STORAGE_KEY, REQUEST_HANDSHAKE } from "../misc/constants";
 import AsyncStorage from "@react-native-community/async-storage";
 
 
@@ -28,7 +28,8 @@ export function ConnectionScreen() {
         try {
             const connectedDevice = await RNBluetoothClassic.connectToDevice(device.address)
 
-            setBluetoothConnection({...bluetoothConnection, terminal: connectedDevice})
+            if (connectedDevice)             
+              await sendBluetoothMessage(connectedDevice.address, JSON.stringify({ action: REQUEST_HANDSHAKE }))                        
         }
         catch (e) {
             ToastAndroid.show('Произошла ошибка при подключении: ' +  e.message, 5000)
