@@ -70,7 +70,7 @@ async function saveObjectToStorage(key, object) {
     await AsyncStorage.setItem(key, JSON.stringify(object))
 }
 
-async function addChatToStorage(chat) {
+export async function addChatToStorage(chat) {
     let chats = await getObjectFromStorage(CHATS_STORAGE_KEY)
 
     if (!chats)

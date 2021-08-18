@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Text, View, ScrollView, TextInput, TouchableOpacity } from "react-native";
 import { getChatMessages, saveMessageToStorage } from "../api/messageService";
 
-import { CHAT_NEW_MESSAGE, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE } from "../misc/constants";
+import { CHAT_NEW_MESSAGE, CHAT_STATUS_CLOSED, REQUEST_CHAT_CLOSURE, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE } from "../misc/constants";
 import { ChatContext } from "../misc/contexts";
 import { chatEventsEmitter } from "../misc/emitters";
 import { bluetoothConnection } from "../models/bluetoothConnection";
@@ -56,8 +56,20 @@ function InputBar(props) {
     
     const { onSendPress } = props
 
+    const chatStatus = currentChat.status
+
+    if (chatStatus === CHAT_STATUS_CLOSED)
+        return (<Text>Чат завершен!</Text>)
+
     return (
         <View style={{flexDirection: 'row', position: 'absolute', left: 0, right: 0, justifyContent: 'center', alignItems: 'center', bottom: 40}}>
+            <TouchableOpacity style={{marginRight: 10}} onPress={() => {
+                chatEventsEmitter.emit(REQUEST_CHAT_CLOSURE, { chatId: currentChat.id, deviceAddress: currentChat.recieverMac })
+            }}>
+                <View style={{backgroundColor: '#b00202', paddingHorizontal: 30, paddingVertical: 15}}>
+                    <Text style={{color: '#fff'}}>X</Text>
+                </View>
+            </TouchableOpacity>
             <TextInput placeholder="Введите текст" style={{width: '80%', height: 50, borderColor: '#000', borderWidth: 1}} onChangeText={(value) => setInputText(value)} value={inputText}></TextInput>
             <View style={{width: 20}}/>
             <TouchableOpacity onPress={() => {

@@ -1,7 +1,7 @@
 import {AppState, Text, ToastAndroid} from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
-import { CHAT_NEW_MESSAGE, CHAT_SCREEN, CONNECTION_SCREEN, DEVICE_CONNECTED, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, REQUEST_HANDSHAKE, RESPONSE_CHAT_CREATED, RESPONSE_HANDSHAKE, RESPONSE_MESSAGE_CREATED, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
+import { CHAT_NEW_MESSAGE, CHAT_SCREEN, CHAT_STATUS_CLOSED, CONNECTION_SCREEN, DEVICE_CONNECTED, REQUEST_CHAT_CLOSURE, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, REQUEST_HANDSHAKE, RESPONSE_CHAT_CLOSED, RESPONSE_CHAT_CREATED, RESPONSE_HANDSHAKE, RESPONSE_MESSAGE_CREATED, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ConnectionScreen } from './src/screens/ConnectionScreen'
 import { createStackNavigator } from '@react-navigation/stack'
@@ -12,7 +12,7 @@ import { BluetoothConnectionContext, ChatContext } from './src/misc/contexts';
 import { bluetoothConnection as initialBluetoothConnection } from './src/models/bluetoothConnection'
 import { bluetoothEventsEmitter, chatEventsEmitter } from './src/misc/emitters';
 import AsyncStorage from '@react-native-community/async-storage';
-import { createEmptyChat, saveRecievedChat, createMessage as createMsg, getChatById, saveRecievedMessage, getExistingChat, saveMessageToStorage } from './src/api/messageService';
+import { createEmptyChat, saveRecievedChat, createMessage as createMsg, getChatById, saveRecievedMessage, getExistingChat, saveMessageToStorage, addChatToStorage } from './src/api/messageService';
 
 
 const Stack = createStackNavigator()
@@ -75,10 +75,34 @@ function App() {
     }
   }
 
+  const closeChat = async (chatId) => {
+    const oldChat = await getChatById(chatId)
+    const chat = { ...oldChat, status: CHAT_STATUS_CLOSED }
+          
+    addChatToStorage(chat)
+
+    setCurrentChat((previousChat) => {
+      console.log(previousChat)
+      console.log(chat)
+
+      if (previousChat && previousChat.id === chatId)
+        return chat
+      else 
+        return previousChat
+    })
+  }
+
+  const requestCloseChat = async (props) => {
+    const { deviceAddress, chatId} = props
+
+    await sendBluetoothMessage(deviceAddress, JSON.stringify({ action: REQUEST_CHAT_CLOSURE, payload: { chatId: chatId} }))
+  }
+
   useEffect(async () => {
     chatEventsEmitter.on(REQUEST_CREATE_CHAT, createChat)
     chatEventsEmitter.on(REQUEST_CREATE_MESSAGE, createMessage)  
     chatEventsEmitter.on(CHAT_NEW_MESSAGE, onMessageRecieved) 
+    chatEventsEmitter.on(REQUEST_CHAT_CLOSURE, requestCloseChat)
 
     bluetoothEventsEmitter.on(DEVICE_CONNECTED, onDeviceConnected)
 
@@ -86,13 +110,14 @@ function App() {
       chatEventsEmitter.off(REQUEST_CREATE_CHAT, createChat)
       chatEventsEmitter.off(REQUEST_CREATE_MESSAGE, createMessage)
       chatEventsEmitter.off(CHAT_NEW_MESSAGE, onMessageRecieved)
+      chatEventsEmitter.off(REQUEST_CHAT_CLOSURE, requestCloseChat)
 
       bluetoothEventsEmitter.off(DEVICE_CONNECTED, onDeviceConnected)
     }
   }, [])
 
   useEffect(async () => {
-    console.log('currentChat updated -> ', currentChat?.id)
+    console.log('currentChat updated -> ', currentChat?.id, 'status:', currentChat?.status)
     
     if (currentChat?.id) {
       const chat = await getChatById(currentChat?.id)
@@ -108,8 +133,6 @@ function App() {
       if (!rawData)
         return;
 
-      console.log(data)
-
       const data = JSON.parse(rawData)
 
       if (data > 1)
@@ -117,6 +140,8 @@ function App() {
 
       if (!data.action)
         throw new Error('Invalid message format. Message: ' +  data)
+
+      const { chatId } = data.payload ?? {}      
 
       switch (data.action) {        
         case RESPONSE_CHAT_CREATED:
@@ -171,6 +196,18 @@ function App() {
           bluetoothEventsEmitter.emit(DEVICE_CONNECTED, { deviceAddress: device.address })
 
           break;
+
+        case REQUEST_CHAT_CLOSURE:         
+          await closeChat(chatId)
+
+          await sendBluetoothMessage(device.address, JSON.stringify({ action: RESPONSE_CHAT_CLOSED, payload: { chatId: chatId } }))
+
+          break;
+        
+        case RESPONSE_CHAT_CLOSED:
+          console.log('response: chat closed!')
+
+          await closeChat(chatId)
       }
     }
   }

@@ -15,8 +15,11 @@ export const MESSAGES_STORAGE_KEY = 'BluetoothChatAppMessages'
 export const REQUEST_HANDSHAKE = 'RequestHandshake'
 export const REQUEST_CREATE_CHAT = 'CreateChat'
 export const REQUEST_CREATE_MESSAGE = 'CreateMessage'
+export const REQUEST_CHAT_CLOSURE ='CloseChat'
+
 export const RESPONSE_HANDSHAKE = 'ResponseHandshake'
 export const RESPONSE_CHAT_CREATED = 'ChatCreated'
 export const RESPONSE_MESSAGE_CREATED = 'MessageCreated'
+export const RESPONSE_CHAT_CLOSED = 'ChatClosed'
 
 export const CHAT_NEW_MESSAGE = 'NewChatMessage'
