@@ -108,7 +108,7 @@ export async function createMessage(text, chatId, senderMac, recieverMac) {
     const message =  {
         chatId: chatId,
         id: messageId,
-        text: text,
+        text: text,        
         createdAt: date,
         senderMac: senderMac,
         recieverMac: recieverMac

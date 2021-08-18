@@ -12,7 +12,7 @@ import { BluetoothConnectionContext, ChatContext } from './src/misc/contexts';
 import { bluetoothConnection as initialBluetoothConnection } from './src/models/bluetoothConnection'
 import { bluetoothEventsEmitter, chatEventsEmitter } from './src/misc/emitters';
 import AsyncStorage from '@react-native-community/async-storage';
-import { createEmptyChat, saveRecievedChat, createMessage as createMsg, getChatById, saveRecievedMessage, getExistingChat } from './src/api/messageService';
+import { createEmptyChat, saveRecievedChat, createMessage as createMsg, getChatById, saveRecievedMessage, getExistingChat, saveMessageToStorage } from './src/api/messageService';
 
 
 const Stack = createStackNavigator()
@@ -70,17 +70,21 @@ function App() {
     await RNBluetoothClassic.writeToDevice(deviceAddress, message + '\r', "utf-8")
   }
 
-  const onMessageRecieved = async () => {
+  const onMessageRecieved = async (params) => {
+    const { message } = params
 
+    saveMessageToStorage(message.chatId, message)
   }
 
   useEffect(async () => {
     chatEventsEmitter.on(REQUEST_CREATE_CHAT, createChat)
-    chatEventsEmitter.on(REQUEST_CREATE_MESSAGE, createMessage)    
+    chatEventsEmitter.on(REQUEST_CREATE_MESSAGE, createMessage)  
+    chatEventsEmitter.on(CHAT_NEW_MESSAGE, onMessageRecieved) 
 
     return () => {
       chatEventsEmitter.off(REQUEST_CREATE_CHAT, createChat)
       chatEventsEmitter.off(REQUEST_CREATE_MESSAGE, createMessage)
+      chatEventsEmitter.off(CHAT_NEW_MESSAGE, onMessageRecieved)
     }
   }, [])
 

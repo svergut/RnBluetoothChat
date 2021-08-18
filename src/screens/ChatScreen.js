@@ -8,6 +8,7 @@ import { getChatMessages, saveMessageToStorage } from "../api/messageService";
 import { CHAT_NEW_MESSAGE, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE } from "../misc/constants";
 import { ChatContext } from "../misc/contexts";
 import { chatEventsEmitter } from "../misc/emitters";
+import { bluetoothConnection } from "../models/bluetoothConnection";
 
 export function ChatScreen({ navigation, route }) {
     const { currentChat } = useContext(ChatContext)
@@ -30,14 +31,14 @@ export function ChatScreen({ navigation, route }) {
         if (recieverMac) {
             chatEventsEmitter.emit(REQUEST_CREATE_MESSAGE, {recieverAddress: recieverMac, chatId: currentChat.id, text: messageText})
         }
-    }
-
-    console.log(currentChat)
+    }    
 
     if (currentChat) {
         return (
             <View style={{height: '100%'}}>
-                <MessagesScrollView />
+                <View style={{height: '80%'}}>
+                    <MessagesScrollView />
+                </View>
                 <InputBar onSendPress={sendMessage}/>
             </View>
         )
@@ -58,7 +59,10 @@ function InputBar(props) {
         <View style={{flexDirection: 'row', position: 'absolute', left: 0, right: 0, justifyContent: 'center', alignItems: 'center', bottom: 40}}>
             <TextInput placeholder="Введите текст" style={{width: '80%', height: 50, borderColor: '#000', borderWidth: 1}} onChangeText={(value) => setInputText(value)} value={inputText}></TextInput>
             <View style={{width: 20}}/>
-            <TouchableOpacity onPress={() => onSendPress(inputText, currentChat)}>
+            <TouchableOpacity onPress={() => {
+                setInputText('')
+                onSendPress(inputText, currentChat)
+            }}>
                 <View style={{backgroundColor: '#008c48', height: 50, padding: 8}}>
                     <Text style={{ color: '#fff' }}>Отправить</Text>    
                 </View>
@@ -77,30 +81,24 @@ function LoadingView() {
 
 function MessagesScrollView() {    
     const { currentChat } = useContext(ChatContext)
-    const [ messages, setMessages ] = useState([])
-
-    const onMessage = async (params) => {
-        const { message } = params
-
-        messages.push(message) //replace with message object
-
-        setMessages(Array.of(...messages))
-
-        saveMessageToStorage(message.chatId, message)
-    }
+    const [ messages, setMessages ] = useState([])    
 
     useEffect(async () => {
         if (!currentChat)
             return;
 
         const savedMessages = await getChatMessages(currentChat.id)
+        
+        setMessages([...savedMessages])
+    }, [currentChat])    
+    
+    const onMessage = async (params) => {
+        const { message } = params
 
-        console.log('savedMessages', savedMessages)
-
-        setMessages(savedMessages)
-    }, [currentChat])
-
-    useEffect(async () => {
+        setMessages((messages) => [...messages, message])
+    }
+    
+    useEffect(async () => {        
         chatEventsEmitter.on(CHAT_NEW_MESSAGE, onMessage)
 
         return () => {
@@ -112,9 +110,7 @@ function MessagesScrollView() {
         <ScrollView>
             {
                 messages.map((message) => {
-                    console.log(message)
-                    console.log(Object.getOwnPropertyNames(message))
-                    return <Text key={message['id']}>{message['text']}</Text>
+                    return <Message key={message.id} message={message} isIncoming={ currentChat.recieverMac !== message.recieverMac } /> 
                 })
             }
         </ScrollView>
@@ -122,15 +118,26 @@ function MessagesScrollView() {
 }
 
 function Message(props) {
-    const { incoming } = props
+    const { message, isIncoming } = props
+    const { createdAt: sentAt, text, senderMac: sender } = message
 
     const incomingColor = '#d0e8c8'
     const outcomingColor = '#c1dde6'
 
+    const messageBackgroundColor = isIncoming ? incomingColor : outcomingColor
+
+    const formattedDate = new Date(sentAt)
 
     return (
-        <View style={{flexDirection: 'row', width: '50%'}}>
-            
+        <View style={{ flexDirection: 'row', marginVertical: 10 }}>
+            { !isIncoming && <View style={{width: '60%'}}/>}
+            <View style={{ backgroundColor: messageBackgroundColor, width: '40%', padding: 15 }}>
+                <View style={{}}>                
+                    <Text style={{fontSize: 10}}>{sender} at {formattedDate.getHours()}:{formattedDate.getMinutes()}</Text>
+                </View>
+                <Text style={{fontSize: 20}}>{text}</Text>            
+            </View>
         </View>
+        
     )
 }
