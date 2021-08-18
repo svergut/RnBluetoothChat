@@ -3,15 +3,16 @@ import { useContext } from "react";
 import { useEffect } from "react";
 import { useState } from "react";
 import { Text, View, ScrollView, TextInput, TouchableOpacity } from "react-native";
-import { getChatMessages } from "../api/messageService";
+import { getChatMessages, saveMessageToStorage } from "../api/messageService";
 
-import { REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE } from "../misc/constants";
+import { CHAT_NEW_MESSAGE, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE } from "../misc/constants";
 import { ChatContext } from "../misc/contexts";
 import { chatEventsEmitter } from "../misc/emitters";
 
 export function ChatScreen({ navigation, route }) {
+    const { currentChat } = useContext(ChatContext)
+
     const recieverMac = route.params?.recieverMac
-    
 
     useEffect(() => {
         if (recieverMac) {
@@ -31,12 +32,20 @@ export function ChatScreen({ navigation, route }) {
         }
     }
 
-    return (
-        <View style={{height: '100%'}}>
-            <MessagesScrollView />
-            <InputBar onSendPress={sendMessage}/>
-        </View>
-    )
+    console.log(currentChat)
+
+    if (currentChat) {
+        return (
+            <View style={{height: '100%'}}>
+                <MessagesScrollView />
+                <InputBar onSendPress={sendMessage}/>
+            </View>
+        )
+    }
+    else {
+        return <LoadingView />
+    }
+
 }
 
 function InputBar(props) {
@@ -58,16 +67,26 @@ function InputBar(props) {
     )
 }
 
+function LoadingView() {
+    return (
+        <View style={{height: '100%', justifyContent: 'center', alignContent: 'center'}}>
+            <Text style={{textAlign: 'center', fontSize: 30, textAlignVertical: 'center'}}>Идет загрузка...</Text>
+        </View>
+    )
+}
+
 function MessagesScrollView() {    
     const { currentChat } = useContext(ChatContext)
     const [ messages, setMessages ] = useState([])
 
     const onMessage = async (params) => {
-        const { recieverAddress, chatId, text } = params
+        const { message } = params
 
-        messages.push(text) //replace with message object
+        messages.push(message) //replace with message object
 
-        setMessages(Array.of(messages))
+        setMessages(Array.of(...messages))
+
+        saveMessageToStorage(message.chatId, message)
     }
 
     useEffect(async () => {
@@ -76,24 +95,42 @@ function MessagesScrollView() {
 
         const savedMessages = await getChatMessages(currentChat.id)
 
+        console.log('savedMessages', savedMessages)
+
         setMessages(savedMessages)
     }, [currentChat])
 
     useEffect(async () => {
-        chatEventsEmitter.on(REQUEST_CREATE_MESSAGE, onMessage)
+        chatEventsEmitter.on(CHAT_NEW_MESSAGE, onMessage)
+
+        return () => {
+            chatEventsEmitter.off(CHAT_NEW_MESSAGE, onMessage)
+        }
     }, [])
 
     return (
         <ScrollView>
             {
                 messages.map((message) => {
-                    return <Text key={message}>{messages}</Text>
+                    console.log(message)
+                    console.log(Object.getOwnPropertyNames(message))
+                    return <Text key={message['id']}>{message['text']}</Text>
                 })
             }
         </ScrollView>
     )        
 }
 
-function Message() {
+function Message(props) {
+    const { incoming } = props
 
+    const incomingColor = '#d0e8c8'
+    const outcomingColor = '#c1dde6'
+
+
+    return (
+        <View style={{flexDirection: 'row', width: '50%'}}>
+            
+        </View>
+    )
 }

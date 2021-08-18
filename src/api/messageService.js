@@ -8,7 +8,7 @@ export async function createEmptyChat(recieverMac, recieverName) {
 
     const chat = {
         id: chatId,
-        createdAt: date,
+        createdAt: date,        
         recieverMac: recieverMac,
         recieverName: recieverName,
         status: CHAT_STATUS_ACTIVE
@@ -19,7 +19,7 @@ export async function createEmptyChat(recieverMac, recieverName) {
     return chat
 }
 
-export async function saveRecievedChat(chat) {
+export async function saveRecievedChat(chat) {    
     await addChatToStorage(chat)
 }
 
@@ -34,9 +34,30 @@ export async function getChatById(id) {
 }
 
 export async function getChatMessages(chatId) {
-    const messages = getObjectFromStorage(MESSAGES_STORAGE_KEY)
+    const messages = await getObjectFromStorage(MESSAGES_STORAGE_KEY) ?? {}
 
     return messages[chatId] ?? []
+}
+
+export async function getExistingChat(deviceAddress) {
+    const chats = await getObjectFromStorage(CHATS_STORAGE_KEY) ?? {}
+    const keys = Object.getOwnPropertyNames(chats)
+    let existingChat
+    
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
+        const chat = chats[key]
+
+        if (chat.recieverMac === deviceAddress) {
+            existingChat = chat
+            break
+        }
+    }
+
+    if (existingChat)
+        return existingChat
+    else
+        console.log('no chats with device ' + deviceAddress)
 }
 
 async function getObjectFromStorage(key) {
@@ -60,7 +81,7 @@ async function addChatToStorage(chat) {
     await saveObjectToStorage(CHATS_STORAGE_KEY, chats)
 }
 
-async function saveMessageToStorage(chatId, message) {
+export async function saveMessageToStorage(chatId, message) {
     let messages = await getObjectFromStorage(MESSAGES_STORAGE_KEY)
 
     if (!messages) 
@@ -81,7 +102,8 @@ async function saveMessageToStorage(chatId, message) {
 
 export async function createMessage(text, chatId, senderMac, recieverMac) {    
     const date = new Date()
-    const messageId = JSON.stringify(date)
+    const messageId = Math.random().toString()
+    
 
     const message =  {
         chatId: chatId,
@@ -91,8 +113,6 @@ export async function createMessage(text, chatId, senderMac, recieverMac) {
         senderMac: senderMac,
         recieverMac: recieverMac
     }
-
-    await saveMessageToStorage(chatId, message)
 
     return message
 }

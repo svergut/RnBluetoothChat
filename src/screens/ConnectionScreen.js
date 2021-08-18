@@ -7,7 +7,8 @@ import { BluetoothConnectionContext } from "../misc/contexts";
 import RNBluetoothClassic from 'react-native-bluetooth-classic'
 import { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
-import { CHAT_SCREEN } from "../misc/constants";
+import { CHATS_STORAGE_KEY, CHAT_SCREEN, MESSAGES_STORAGE_KEY } from "../misc/constants";
+import AsyncStorage from "@react-native-community/async-storage";
 
 
 export function ConnectionScreen() {
@@ -46,7 +47,7 @@ export function ConnectionScreen() {
     }
 
     return (
-        <ScrollView>
+        <ScrollView style={{height: '100%'}}>
             <View>
                 <Text style={{textAlign: 'center', marginTop: 7, marginBottom: 5, fontSize: 22}}>Подключенные устройства</Text>
                 <View>
@@ -71,6 +72,14 @@ export function ConnectionScreen() {
                     }
                     </ScrollView>
                 </View>
+            </View>
+
+            <View style={{height: 150}}></View>
+
+            <View style={{width: '20%',}}>
+                <CommonButton onPress={async () => {
+                    await AsyncStorage.multiRemove([CHATS_STORAGE_KEY, MESSAGES_STORAGE_KEY])
+                }} text="clear storage"/>
             </View>
         </ScrollView>
     )

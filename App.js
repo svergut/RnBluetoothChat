@@ -1,7 +1,7 @@
 import {AppState, Text, ToastAndroid} from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
-import { CHAT_SCREEN, CONNECTION_SCREEN, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, RESPONSE_CHAT_CREATED, RESPONSE_MESSAGE_CREATED, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
+import { CHAT_NEW_MESSAGE, CHAT_SCREEN, CONNECTION_SCREEN, REQUEST_CREATE_CHAT, REQUEST_CREATE_MESSAGE, RESPONSE_CHAT_CREATED, RESPONSE_MESSAGE_CREATED, SAVED_TERMINAL_ADDRESS_STORAGE_KEY } from './src/misc/constants';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ConnectionScreen } from './src/screens/ConnectionScreen'
 import { createStackNavigator } from '@react-navigation/stack'
@@ -12,7 +12,7 @@ import { BluetoothConnectionContext, ChatContext } from './src/misc/contexts';
 import { bluetoothConnection as initialBluetoothConnection } from './src/models/bluetoothConnection'
 import { bluetoothEventsEmitter, chatEventsEmitter } from './src/misc/emitters';
 import AsyncStorage from '@react-native-community/async-storage';
-import { createEmptyChat, saveRecievedChat, createMessage as createMsg, getChatById, saveRecievedMessage } from './src/api/messageService';
+import { createEmptyChat, saveRecievedChat, createMessage as createMsg, getChatById, saveRecievedMessage, getExistingChat } from './src/api/messageService';
 
 
 const Stack = createStackNavigator()
@@ -39,19 +39,35 @@ function App() {
   const createChat = async (params) => {
     const { recieverAddress } = params
 
-    await RNBluetoothClassic.writeToDevice(recieverAddress, JSON.stringify({
-      action: REQUEST_CREATE_CHAT, payload: { chat: await createEmptyChat(recieverAddress, '')}
-    }) + '\r', "utf-8") //save waiting
+    const existingChatWithReciever = await getExistingChat(recieverAddress)
+
+    if (existingChatWithReciever) {    
+      setCurrentChat(existingChatWithReciever)
+    } 
+    else {
+      sendBluetoothMessage(recieverAddress, JSON.stringify({
+        action: REQUEST_CREATE_CHAT, payload: { chat: await createEmptyChat(recieverAddress, '')}
+      }))
+    }   
   }
 
   const createMessage = async (params) => {
     const { recieverAddress, chatId, text } = params
     
-    console.log('create message')
+    console.log('create message')    
 
-    await RNBluetoothClassic.writeToDevice(recieverAddress, JSON.stringify({
+    await sendBluetoothMessage(recieverAddress, JSON.stringify({
       action: REQUEST_CREATE_MESSAGE, payload: { message: await createMsg(text, chatId, 'replace with mac???', recieverAddress)}
-    }) + '\r', "utf-8")
+    }))
+  }
+
+  async function sendBluetoothMessage(deviceAddress, message) {
+    if (!deviceAddress) {
+      console.log('Cannot send message: device is not connected')
+      return;
+    }
+
+    await RNBluetoothClassic.writeToDevice(deviceAddress, message + '\r', "utf-8")
   }
 
   const onMessageRecieved = async () => {
@@ -60,7 +76,7 @@ function App() {
 
   useEffect(async () => {
     chatEventsEmitter.on(REQUEST_CREATE_CHAT, createChat)
-    chatEventsEmitter.on(REQUEST_CREATE_MESSAGE, createMessage)
+    chatEventsEmitter.on(REQUEST_CREATE_MESSAGE, createMessage)    
 
     return () => {
       chatEventsEmitter.off(REQUEST_CREATE_CHAT, createChat)
@@ -73,8 +89,6 @@ function App() {
     
     if (currentChat?.id) {
       const chat = await getChatById(currentChat?.id)
-
-      console.log(chat)
     }    
   }, [currentChat])
 
@@ -103,12 +117,12 @@ function App() {
 
           break;
         case REQUEST_CREATE_CHAT: 
-          const chat = data.payload.chat
+          const chat = { ...data.payload.chat, recieverMac: device.address, recieverName: 'other name' }          
 
           await saveRecievedChat(chat)
 
-          await RNBluetoothClassic.writeToDevice(device.address, JSON.stringify({
-            action: RESPONSE_CHAT_CREATED, payload: { chatId: chat.id }}) + '\r');
+          await sendBluetoothMessage(device.address, JSON.stringify({
+            action: RESPONSE_CHAT_CREATED, payload: { chatId: chat.id }}))
 
           setCurrentChat(chat)
           
@@ -120,13 +134,19 @@ function App() {
           
           saveRecievedMessage(message)
 
-          await RNBluetoothClassic.writeToDevice(device.address, JSON.stringify({ action: RESPONSE_MESSAGE_CREATED, payload: { messageId: message.id }}) + '\r')
+          await sendBluetoothMessage(device.address, JSON.stringify({ action: RESPONSE_MESSAGE_CREATED, payload: { message: message }}))
+
+          chatEventsEmitter.emit(CHAT_NEW_MESSAGE, { message: message })
 
           ToastAndroid.show('message recieved from device ' + device.name, 3000)
 
           break;
 
-        case RESPONSE_MESSAGE_CREATED: 
+        case RESPONSE_MESSAGE_CREATED:  
+          const msg = data.payload.message       
+          console.log('message', msg)
+          chatEventsEmitter.emit(CHAT_NEW_MESSAGE, { message: msg})
+
           ToastAndroid.show('message recieved on device ' + device.name, 3000)
 
           break;
