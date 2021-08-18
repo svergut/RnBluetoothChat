@@ -52,12 +52,10 @@ function App() {
   }
 
   const createMessage = async (params) => {
-    const { recieverAddress, chatId, text } = params
-    
-    console.log('create message')    
+    const { recieverAddress, chatId, text, recieverName } = params
 
     await sendBluetoothMessage(recieverAddress, JSON.stringify({
-      action: REQUEST_CREATE_MESSAGE, payload: { message: await createMsg(text, chatId, 'replace with mac???', recieverAddress)}
+      action: REQUEST_CREATE_MESSAGE, payload: { message: await createMsg(text, chatId, 'OWN:DEVICE:MAC', 'Me', recieverAddress, recieverName)}
     }))
   }
 
@@ -134,7 +132,7 @@ function App() {
 
           break;
         case REQUEST_CREATE_MESSAGE:
-          const message = data.payload.message
+          const message = {...data.payload.message, senderName: device.name, recieverName: 'Me', senderMac: device.address }
           
           saveRecievedMessage(message)
 

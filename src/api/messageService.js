@@ -100,7 +100,7 @@ export async function saveMessageToStorage(chatId, message) {
     saveObjectToStorage(MESSAGES_STORAGE_KEY, messages)
 }
 
-export async function createMessage(text, chatId, senderMac, recieverMac) {    
+export async function createMessage(text, chatId, senderMac, senderName, recieverMac, recieverName) {    
     const date = new Date()
     const messageId = Math.random().toString()
     
@@ -111,6 +111,8 @@ export async function createMessage(text, chatId, senderMac, recieverMac) {
         text: text,        
         createdAt: date,
         senderMac: senderMac,
+        recieverName: recieverName,
+        senderName: senderName,
         recieverMac: recieverMac
     }
 

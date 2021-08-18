@@ -14,6 +14,7 @@ export function ChatScreen({ navigation, route }) {
     const { currentChat } = useContext(ChatContext)
 
     const recieverMac = route.params?.recieverMac
+    const recieverName = route.params?.recieverName
 
     useEffect(() => {
         if (recieverMac) {
@@ -29,7 +30,7 @@ export function ChatScreen({ navigation, route }) {
             console.log('chat hasnt been created yet!')
 
         if (recieverMac) {
-            chatEventsEmitter.emit(REQUEST_CREATE_MESSAGE, {recieverAddress: recieverMac, chatId: currentChat.id, text: messageText})
+            chatEventsEmitter.emit(REQUEST_CREATE_MESSAGE, { recieverAddress: recieverMac, recieverName: recieverName, chatId: currentChat.id, text: messageText})
         }
     }    
 
@@ -60,8 +61,10 @@ function InputBar(props) {
             <TextInput placeholder="Введите текст" style={{width: '80%', height: 50, borderColor: '#000', borderWidth: 1}} onChangeText={(value) => setInputText(value)} value={inputText}></TextInput>
             <View style={{width: 20}}/>
             <TouchableOpacity onPress={() => {
-                setInputText('')
-                onSendPress(inputText, currentChat)
+                if (inputText !== '') {
+                    setInputText('')
+                    onSendPress(inputText, currentChat)
+                }
             }}>
                 <View style={{backgroundColor: '#008c48', height: 50, padding: 8}}>
                     <Text style={{ color: '#fff' }}>Отправить</Text>    
@@ -119,7 +122,7 @@ function MessagesScrollView() {
 
 function Message(props) {
     const { message, isIncoming } = props
-    const { createdAt: sentAt, text, senderMac: sender } = message
+    const { createdAt: sentAt, text, senderMac, senderName } = message
 
     const incomingColor = '#d0e8c8'
     const outcomingColor = '#c1dde6'
@@ -133,7 +136,7 @@ function Message(props) {
             { !isIncoming && <View style={{width: '60%'}}/>}
             <View style={{ backgroundColor: messageBackgroundColor, width: '40%', padding: 15 }}>
                 <View style={{}}>                
-                    <Text style={{fontSize: 10}}>{sender} at {formattedDate.getHours()}:{formattedDate.getMinutes()}</Text>
+                    <Text style={{fontSize: 10}}>{senderMac} ({senderName}) at {formattedDate.getHours()}:{formattedDate.getMinutes()}</Text>
                 </View>
                 <Text style={{fontSize: 20}}>{text}</Text>            
             </View>

@@ -43,7 +43,7 @@ export function ConnectionScreen() {
     }
 
     const startChat = async (device) => {
-        navigation.navigate(CHAT_SCREEN, { recieverMac: device.address})
+        navigation.navigate(CHAT_SCREEN, { recieverName: device.name, recieverMac: device.address})
     }
 
     return (
